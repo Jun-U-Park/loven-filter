@@ -1,0 +1,29 @@
+.ivpf-hidden{display:none!important}
+.ivpf-dot{display:inline-block!important;width:9px;height:9px;border-radius:50%;background:#8b95a5;vertical-align:middle;margin-right:5px;box-shadow:0 0 0 1px #0002}
+.ivpf-dot[data-state="verified"]{background:#22a447}
+.ivpf-dot[data-state="warning"]{background:#e2ae00}
+.ivpf-dot[data-state="unverified"]{background:#df3940}
+#ivpf-panel{position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#182132;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 4px 20px #0005;font:13px/1.6 sans-serif;max-width:300px}
+#ivpf-panel button{background:#fff;color:#182132;border:0;border-radius:4px;padding:4px 9px;margin:5px 5px 0 0;cursor:pointer}
+ .ivpf-dot[hidden]{display:none!important}
+#ivpf-panel{box-sizing:border-box;width:320px;height:142px;max-width:calc(100vw - 32px);overflow:hidden}
+#ivpf-panel .ivpf-counts{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;margin:7px 0}
+#ivpf-panel .ivpf-counts>div{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
+.ivpf-count-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#8b95a5}.ivpf-count-dot.green{background:#22a447}.ivpf-count-dot.yellow{background:#e2ae00}.ivpf-count-dot.red{background:#df3940}
+#ivpf-panel .ivpf-count-number{margin-left:auto;width:6ch;text-align:right;font-variant-numeric:tabular-nums;overflow:hidden}
+#ivpf-panel button:disabled{opacity:.6;cursor:wait}
+#ivpf-panel{height:192px}
+#ivpf-panel .ivpf-counts{grid-template-columns:1fr}
+#ivpf-panel{background:rgba(24,33,50,.5)}
+#ivpf-panel{width:170px;padding-left:12px;padding-right:12px}
+#ivpf-panel .ivpf-count-number{width:5ch}
+#ivpf-panel button{font-size:12px;white-space:nowrap;padding-left:7px;padding-right:7px}
+#ivpf-panel{background:rgba(0,0,0,.5)}
+#ivpf-panel button{display:block;margin:7px auto 0}
+#ivpf-panel{height:180px;background:rgba(0,0,0,.75)}
+/* Keep the original auth icon in the DOM for verification; hide only in lists. */
+.ivpf-active td.user img[src*="/i1957398161.png"]{display:none!important}
+#ivpf-panel .ivpf-panel-header{display:flex;align-items:center;justify-content:space-between;gap:4px}
+#ivpf-panel button.ivpf-settings{display:inline-flex;align-items:center;justify-content:center;background:transparent;color:#fff;font-size:17px;width:20px;height:20px;padding:0;margin:0;line-height:1;flex-shrink:0}
+#ivpf-panel button.ivpf-settings:hover{background:#ffffff20}
+#ivpf-panel button.ivpf-settings:focus-visible{outline:2px solid #fff;outline-offset:2px}

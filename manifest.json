@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "로벤 인장 필터",
+  "version": "0.5.6",
+  "description": "인장 페이지와 실제 로스트아크 게임 프로필 응답을 검증하여 게시글과 댓글을 필터링합니다.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.inven.co.kr/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "content_security_policy": {"extension_pages":"default-src 'self'; script-src 'self'; object-src 'none'; connect-src https://www.inven.co.kr/member/inventory/view_inventory.php https://www.inven.co.kr/common/gameprofile/index.php; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'"},
+  "icons": {"16":"icons/icon-16.png","32":"icons/icon-32.png","48":"icons/icon-48.png","128":"icons/icon-128.png"},
+  "action": {"default_popup": "popup.html", "default_icon":{"16":"icons/icon-16.png","32":"icons/icon-32.png","48":"icons/icon-48.png","128":"icons/icon-128.png"}},
+  "content_scripts": [{"matches": ["https://www.inven.co.kr/board/lostark/*"], "js": ["rating.js", "settings.js", "content.js"], "css": ["content.css"], "run_at": "document_start"}]
+}
+
+
