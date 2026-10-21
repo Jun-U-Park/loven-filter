@@ -14,6 +14,7 @@
     observer?.disconnect();clearTimeout(scanTimer);clearInterval(expiryTimer);
     for(const [el] of records)el.classList.remove('ivpf-hidden');
     for(const {dot} of badges.values())dot.remove();
+    document.querySelectorAll('.ivpf-recommend-counts').forEach(el=>el.remove());
     panel?.remove();document.body?.classList.remove('ivpf-active');
     try{if(storageListener)chrome.storage.onChanged.removeListener(storageListener);}catch{}
     records.clear();badges.clear();users.clear();
@@ -37,14 +38,36 @@
       const name=cell.querySelector('.layerNickName')||cell;
       add(row,nickOf(name),'posts',hasIcon(cell));badge(name,nickOf(name),hasIcon(cell));
     });
+    document.querySelectorAll('.mo-board-list li.list').forEach(row=>{
+      if(!row.querySelector('a.contentLink')) return;
+      const scope=row.querySelector('.user_info .nick');
+      const name=scope?.querySelector('.layerNickName')||scope;
+      if(!name) return;
+      const nick=nickOf(name),icon=hasIcon(scope);
+      add(row,nick,'posts',icon);badge(name,nick,icon);
+    });
     document.querySelectorAll('.commentList1 li .nickname,.commentList1 li .-c-nickname').forEach(n=>{add(n.closest('li'),nickOf(n),'comments',hasIcon(n));badge(n,nickOf(n),hasIcon(n));});
-    const writer=document.querySelector('.articleWriter [onclick*="layerNickName"]');
+    const writer=document.querySelector('.articleWriter [onclick*="layerNickName"],.mo-board-view #article-writer > span');
     if(writer) {
       const nick=nickOf(writer);
       badge(writer,nick,null);
       // The detail header does not render a game authentication icon.
       // null means no icon signal on this surface: query the actual profile.
-      document.querySelectorAll('.articleSubject,.articleContent').forEach(el=>add(el,nick,'posts',null));
+      document.querySelectorAll('.articleSubject,#articleSubject,.articleContent').forEach(el=>add(el,nick,'posts',null));
+    }
+    // Recommendation rows have no auth-icon signal. Only query an open list.
+    const recommendationCells=new Set();
+    document.querySelectorAll('#recom_article.recomList').forEach(list=>{
+      if(!list.getClientRects().length||getComputedStyle(list).visibility==='hidden') return;
+      list.querySelectorAll('table tr').forEach(row=>{
+        const cell=row.querySelector('td:first-child');
+        if(!cell||!row.getClientRects().length) return;
+        const nick=nickOf(cell);if(!nick) return;
+        recommendationCells.add(cell);badge(cell,nick,null,true);
+      });
+    });
+    for(const [name,r] of badges) if(r.recommendation&&!recommendationCells.has(name)) {
+      r.dot.remove();badges.delete(name);
     }
     // Badges also verify users when the hide filter is switched off.
     // Detail author and comments precede the lower-page article list.
@@ -53,12 +76,13 @@
       return rank(a,ra)-rank(b,rb);
     });
     for(const [,{nick,icon}] of ordered) if(settings.enabled && icon!==false) check(nick);
+    if(settings.enabled) for(const cell of recommendationCells) check(badges.get(cell).nick);
     render();
   }
-  function badge(name,nick,icon) {
+  function badge(name,nick,icon,recommendation=false) {
     let dot=badges.get(name)?.dot;
     if(!dot || !dot.isConnected){dot=document.createElement('span');dot.className='ivpf-dot';name.prepend(dot);}
-    badges.set(name,{dot,nick,icon});
+    badges.set(name,{dot,nick,icon,recommendation});
   }
   function check(nick) {
     if(!contextValid()){deactivate();return;}
@@ -79,8 +103,12 @@
   function render() {
     if(stopped)return;
     document.body?.classList.toggle('ivpf-active',settings.enabled);
-    if(panel) panel.style.display=settings.enabled?'':'none';
+    if(panel) {
+      panel.style.display=settings.enabled&&settings.panelVisible?'':'none';
+      panel.dataset.position=settings.panelPosition;
+    }
     for(const {dot} of badges.values()) dot.hidden=!settings.enabled;
+    document.querySelectorAll('.ivpf-recommend-counts').forEach(el=>el.hidden=!settings.enabled);
     if(!settings.enabled) {
       for(const [el] of records) el.classList.remove('ivpf-hidden');
       return;
@@ -94,21 +122,58 @@
     const colorOf=state=>state==='verified'?'green':state==='warning'?'yellow':state==='unverified'?'red':'black';
     const labels={verified:'인증 프로필 공개 · 기준 충족',warning:'인증 프로필 공개 · 주의 기준 해당',unknown:'인증 프로필 확인됨 · 일부 기준 확인 불가',unverified:'인증마크 없음 또는 인증 프로필 없음',pending:'검증 대기',error:'검증 실패'};
     const counts={green:0,yellow:0,red:0,black:0};
+    const recommendationCounts=new Map();
     for(const [name,r] of badges){
       if(!name.isConnected){badges.delete(name);continue;}
       const result=users.get(r.nick);
       let state=r.icon===false?'unverified':(result?.state||'pending');
       const rating=state==='verified'&&result.metrics?globalThis.ivpfRating.assess(result.metrics,Date.now(),settings):null;
       if(rating) state=rating.state;
-      counts[colorOf(state)]++;
+      if(!r.recommendation) counts[colorOf(state)]++;
+      else {
+        const table=name.closest('table');
+        if(table){
+          if(!recommendationCounts.has(table)) recommendationCounts.set(table,new Map());
+          recommendationCounts.get(table).set(r.nick,colorOf(state));
+        }
+      }
       const label=state==='warning'
         ? rating.reasons.join(' · ')
         : [labels[state]||labels.error,...(rating?.reasons||[]),...(rating?.unknown||[])].join(' · ');
       r.dot.dataset.state=state;r.dot.title=label;r.dot.setAttribute('aria-label',label);r.dot.setAttribute('role','img');
     }
+    for(const [table,nicks] of recommendationCounts){
+      const heading=table.querySelector('th');if(!heading) continue;
+      let totals=heading.querySelector('.ivpf-recommend-counts');
+      if(!totals){
+        totals=document.createElement('span');totals.className='ivpf-recommend-counts';
+        const total=document.createElement('span'),totalLabel=document.createElement('span'),totalNumber=document.createElement('span');
+        total.className='ivpf-recommend-total';totalLabel.textContent='합계';totalNumber.dataset.recommendTotal='';
+        total.append(totalLabel,totalNumber);totals.append(total);
+        for(const [color,label] of Object.entries({green:'인장',yellow:'가라인장',red:'노인장',black:'대기·실패·일부 정보 확인 불가'})){
+          const item=document.createElement('span'),dot=document.createElement('i'),number=document.createElement('span');
+          item.title=label;item.className='ivpf-recommend-group';dot.className='ivpf-recommend-dot';dot.dataset.color=color;dot.setAttribute('aria-hidden','true');
+          number.dataset.recommendCount=color;item.append(dot,number);totals.append(item);
+        }
+        heading.append(totals);
+      }
+      totals.hidden=false;
+      const values={green:0,yellow:0,red:0,black:0};
+      for(const color of nicks.values()) values[color]++;
+      const totalNumber=totals.querySelector('[data-recommend-total]'),totalText=nicks.size.toLocaleString('ko-KR');
+      if(totalNumber.textContent!==totalText) totalNumber.textContent=totalText;
+      for(const [color,value] of Object.entries(values)){
+        const number=totals.querySelector('[data-recommend-count="'+color+'"]'),text=value.toLocaleString('ko-KR');
+        if(number.textContent!==text) number.textContent=text;
+      }
+      totals.setAttribute('aria-label',`합계 ${nicks.size}명, 인장 ${values.green}명, 가라인장 ${values.yellow}명, 노인장 ${values.red}명, 대기·실패 ${values.black}명`);
+    }
+    document.querySelectorAll('.ivpf-recommend-counts').forEach(el=>{
+      if(!recommendationCounts.has(el.closest('table'))) el.remove();
+    });
     for(const [el,r] of records) {
       const state=stateOf(r);
-      const hide=settings[r.kind] && settings[colorOf(state)]==='hide';
+      const hide=settings[r.kind] && settings[r.kind+'_'+colorOf(state)]==='hide';
       el.classList.toggle('ivpf-hidden',!!hide);
     }
     if(summary) for(const color of Object.keys(counts)) summary.querySelector('[data-count="'+color+'"]').textContent=counts[color].toLocaleString('ko-KR');
@@ -139,7 +204,7 @@
       dot.className='ivpf-count-dot '+color;number.dataset.count=color;number.className='ivpf-count-number';
       cell.append(dot,document.createTextNode(label),number);summary.append(cell);
     }
-    summary.title='현재 페이지의 닉네임 표시 수입니다. 같은 사용자도 여러 번 표시되면 중복 집계됩니다. 회색에는 일부 정보 확인 불가도 포함됩니다.';panel.append(summary);
+    summary.title='게시글·댓글의 닉네임 표시 수입니다. 추천·비공감 명단은 제외합니다. 같은 사용자도 여러 번 표시되면 중복 집계됩니다. 회색에는 일부 정보 확인 불가도 포함됩니다.';panel.append(summary);
     const retry=document.createElement('button');retry.textContent='인장 검증 새로고침';
     retry.onclick=async event=>{
       if(!event.isTrusted)return;
@@ -150,8 +215,11 @@
     };panel.append(retry);
     document.body.append(panel);
     observer=new MutationObserver(mutations=>{
-      if(mutations.some(m=>!panel.contains(m.target))) schedule();
-    });observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['onclick','src']});
+      if(mutations.some(m=>!panel.contains(m.target)&&
+        (m.type!=='attributes'||m.attributeName!=='class'||
+          (m.oldValue||'').replace(/\bivpf-(?:active|hidden)\b/g,'').trim()!==
+          (m.target.getAttribute('class')||'').replace(/\bivpf-(?:active|hidden)\b/g,'').trim()))) schedule();
+    });observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeOldValue:true,attributeFilter:['onclick','src','style','hidden','class']});
     storageListener=(changes,area)=>{
       if(!contextValid()){deactivate();return;}
       if(area!=='local') return;

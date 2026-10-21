@@ -56,7 +56,7 @@ export function trustedSender(sender,extensionId,boardOnly=false) {
   if(sender?.id!==extensionId || typeof sender.url!=='string') return false;
   try {
     const url=new URL(sender.url);
-    if(sender.tab) return sender.frameId===0 && url.origin==='https://www.inven.co.kr' && /^\/board\/lostark\/\d+(?:\/\d+)?\/?$/.test(url.pathname);
+    if(sender.tab) return sender.frameId===0 && ['https://www.inven.co.kr','https://m.inven.co.kr'].includes(url.origin) && /^\/board\/lostark\/\d+(?:\/\d+)?\/?$/.test(url.pathname);
     return !boardOnly && url.href===`chrome-extension://${extensionId}/popup.html`;
   }catch{return false;}
 }

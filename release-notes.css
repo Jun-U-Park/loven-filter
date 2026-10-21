@@ -1,0 +1,9 @@
+#ivpf-update-notice{box-sizing:border-box;width:460px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow:auto;padding:24px;border:0;border-radius:12px;background:#fff;color:#222;box-shadow:0 8px 40px #0005;font:14px/1.7 sans-serif}
+#ivpf-update-notice::backdrop{background:#0006}
+#ivpf-update-notice h2{margin:0 0 16px;font:700 17px/1.5 sans-serif}
+#ivpf-update-notice h3{margin:0 0 8px;font:700 14px/1.5 sans-serif}
+#ivpf-update-notice ol{margin:0;padding-left:24px;list-style:decimal}
+#ivpf-update-notice li{display:list-item;margin:7px 0}
+#ivpf-update-notice p{margin:8px 0;color:#b42318}
+#ivpf-update-notice button{display:block;margin:18px 0 0 auto;padding:8px 24px;border:0;border-radius:6px;background:#2851ce;color:#fff;font:700 14px/1.5 sans-serif;cursor:pointer}
+#ivpf-update-notice button:focus-visible{outline:2px solid #222;outline-offset:3px}

@@ -71,6 +71,21 @@ async function verify(nick){
 }
 chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
  if(!msg||typeof msg!=='object'||!trustedSender(sender,chrome.runtime.id))return false;
+ if(['claimUpdateNotice','ackUpdateNotice'].includes(msg.type)&&trustedSender(sender,chrome.runtime.id,true)&&typeof msg.token==='string'&&/^[a-zA-Z0-9-]{16,80}$/.test(msg.token)){
+  mutate(async()=>{
+   const version=chrome.runtime.getManifest().version;
+   const data=await chrome.storage.local.get(['updateNoticePending','updateNoticeSeen','updateNoticeLease']);
+   if(data.updateNoticePending!==version||data.updateNoticeSeen===version)return {done:true};
+   const lease=data.updateNoticeLease,owns=lease?.version===version&&lease.tab===sender.tab.id&&lease.token===msg.token;
+   if(msg.type==='ackUpdateNotice'){
+    if(!owns)return {ok:false};
+    await chrome.storage.local.set({updateNoticeSeen:version,updateNoticePending:null,updateNoticeLease:null});return {ok:true,done:true};
+   }
+   if(!owns&&lease?.version===version&&lease.expires>Date.now())return {busy:true};
+   await chrome.storage.local.set({updateNoticeLease:{version,tab:sender.tab.id,token:msg.token,expires:Date.now()+90000}});
+   return {version};
+  }).then(reply,()=>reply({error:true}));return true;
+ }
  if(msg.type==='openSettings'&&trustedSender(sender,chrome.runtime.id,true)){
   if(typeof chrome.action?.openPopup!=='function'){reply({ok:false,reason:'Chrome 도구 모음의 확장 아이콘으로 설정을 열어주세요.'});return false;}
   const options=Number.isInteger(sender.tab.windowId)?{windowId:sender.tab.windowId}:{};
@@ -92,3 +107,13 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
 });
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.settings&&!globalThis.ivpfSettings.normalize(changes.settings.newValue).enabled)stop();});
 chrome.runtime.onStartup.addListener(()=>mutate(cleanup));
+chrome.runtime.onInstalled?.addListener(details=>{
+ const version=chrome.runtime.getManifest().version;
+ if(details.reason==='install')mutate(()=>chrome.storage.local.set({updateNoticeSeen:version,updateNoticePending:null,updateNoticeLease:null}));
+ else if(details.reason==='update')mutate(async()=>{
+  const stored=await chrome.storage.local.get(['updateNoticeSeen','updateNoticePending']);
+  // Existing development installs may reload the same version when this feature is added.
+  if(details.previousVersion!==version||(!stored.updateNoticeSeen&&!stored.updateNoticePending))
+   await chrome.storage.local.set({updateNoticePending:version,updateNoticeLease:null});
+ });
+});
