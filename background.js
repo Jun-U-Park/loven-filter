@@ -1,5 +1,5 @@
 import {identity,hasLostarkProfile,classify,Queue,trustedSender,validNickname} from './core.js';
-const queue=new Queue(10,50),inFlight=new Map(),controllers=new Set();
+const queue=new Queue(5,500),inFlight=new Map(),controllers=new Set();
 const ORIGIN='https://www.inven.co.kr',INVENTORY='/member/inventory/view_inventory.php',PROFILE='/common/gameprofile/index.php';
 let epoch=0,cooldown=0,lastClear=0,lastCleanup=0;
 let writes=Promise.resolve();

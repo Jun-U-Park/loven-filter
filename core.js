@@ -52,16 +52,21 @@ export class Queue {
     Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{this.active--;this.pump();});this.pump();
   }
 }
+// Inven operator's requested scope: Lost Ark free board only.
+export const lostarkBoardIds=Object.freeze(['6271']);
+const lostarkBoardSet=new Set(lostarkBoardIds);
 export function trustedSender(sender,extensionId,boardOnly=false) {
   if(sender?.id!==extensionId || typeof sender.url!=='string') return false;
   try {
     const url=new URL(sender.url);
-    if(sender.tab) return sender.frameId===0 && ['https://www.inven.co.kr','https://m.inven.co.kr'].includes(url.origin) && /^\/board\/lostark\/\d+(?:\/\d+)?\/?$/.test(url.pathname);
+    if(sender.tab) {
+      const path=url.pathname.match(/^\/board\/(lostark|webzine)\/(\d+)(?:\/\d+)?\/?$/);
+      return sender.frameId===0 && ['https://www.inven.co.kr','https://m.inven.co.kr'].includes(url.origin) &&
+        !!path && lostarkBoardSet.has(path[2]);
+    }
     return !boardOnly && url.href===`chrome-extension://${extensionId}/popup.html`;
   }catch{return false;}
 }
 export function validNickname(nick) {
   return typeof nick==='string'&&nick.length>0&&nick.length<=80&&nick===nick.trim()&&!/[\u0000-\u001f\u007f-\u009f]/.test(nick);
 }
-
-
