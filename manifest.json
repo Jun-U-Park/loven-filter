@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "로벤 인장 필터",
-  "version": "0.6.3",
+  "version": "0.6.7",
   "description": "로스트아크 인벤 자유게시판에서 인장과 실제 게임 프로필을 확인해 닉네임 상태를 표시하고 게시글·댓글을 필터링합니다.",
   "permissions": [
     "storage"

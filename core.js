@@ -1,6 +1,6 @@
 import './rating.js';
 import './settings.js';
-export const defaults = {enabled:true, posts:true, comments:true, green:'show', yellow:'show', red:'hide', black:'hide', months:3, minPower:4000, minItem:1730};
+export const defaults = {enabled:true, posts:true, comments:true, green:'show', yellow:'show', red:'show', black:'show', months:3, minPower:4000, minItem:1730};
 export function identity(html, nick) {
   const decode = s => s.replace(/&quot;/g,'"').replace(/&#039;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
   const modern = html.match(/\bdata-common-data="([^"]+)"/);
@@ -39,7 +39,13 @@ export function classify(data) {
 }
 export class Queue {
   constructor(limit=2, gap=350) {this.limit=limit;this.gap=gap;this.active=0;this.jobs=[];this.next=0;this.timer=null;}
-  run(task) {return new Promise((resolve,reject)=>{this.jobs.push({task,resolve,reject});this.pump();});}
+  run(task,options={}) {return new Promise((resolve,reject)=>{this.jobs.push({task,resolve,reject,options});this.pump();});}
+  cancelWhere(predicate,value) {
+    const removed=this.jobs.filter(predicate);
+    this.jobs=this.jobs.filter(job=>!predicate(job));
+    for(const job of removed)job.resolve(value);
+    return removed;
+  }
   cancelPending(value) {
     if(this.timer){clearTimeout(this.timer);this.timer=null;}
     for(const job of this.jobs.splice(0))job.resolve(value);
@@ -48,7 +54,14 @@ export class Queue {
     if(this.timer || this.active>=this.limit || !this.jobs.length) return;
     const wait=Math.max(0,this.next-Date.now());
     if(wait) {this.timer=setTimeout(()=>{this.timer=null;this.pump();},wait);return;}
-    const job=this.jobs.shift();this.active++;this.next=Date.now()+this.gap;
+    // Stable priority selection; already running work is never interrupted.
+    let index=0,best=Infinity;
+    for(let i=0;i<this.jobs.length;i++){
+      const priority=this.jobs[i].options.priority?.()??0;
+      if(priority<best){best=priority;index=i;}
+    }
+    if(best===Infinity)return;
+    const [job]=this.jobs.splice(index,1);this.active++;this.next=Date.now()+this.gap;
     Promise.resolve().then(job.task).then(job.resolve,job.reject).finally(()=>{this.active--;this.pump();});this.pump();
   }
 }

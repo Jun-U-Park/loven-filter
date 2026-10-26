@@ -1,8 +1,8 @@
 // Whitelist persisted settings; ignore unknown keys and malformed values.
 globalThis.ivpfSettings = {
-  defaults:{enabled:true,posts:true,comments:true,green:'show',yellow:'show',red:'hide',black:'hide',months:3,minPower:4000,minItem:1730},
+  defaults:{enabled:true,posts:true,comments:true,green:'show',yellow:'show',red:'show',black:'show',months:3,minPower:4000,minItem:1730},
   normalize(value) {
-    const out={...this.defaults,panelVisible:true,panelPosition:'right'};
+    const out={...this.defaults,panelVisible:false,panelPosition:'right'};
     if(!value||typeof value!=='object'||Array.isArray(value)) value={};
     for(const key of ['enabled','posts','comments','panelVisible']) if(typeof value[key]==='boolean') out[key]=value[key];
     if(value.panelPosition==='left'||value.panelPosition==='right') out.panelPosition=value.panelPosition;

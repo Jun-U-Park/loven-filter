@@ -4,20 +4,20 @@
 .ivpf-dot[data-state="warning"]{background:#e2ae00}
 .ivpf-dot[data-state="unverified"]{background:#df3940}
 .ivpf-recommend-counts{float:right;display:inline-flex!important;align-items:center;gap:9px;margin-left:12px;font:12px/1.5 sans-serif;white-space:nowrap}
-#recom_article th .ivpf-recommend-counts,#recom_article th .ivpf-recommend-counts span{background:none!important;padding:0!important;text-indent:0!important;width:auto!important;height:auto!important}
-#recom_article th .ivpf-recommend-counts::before,#recom_article th .ivpf-recommend-counts::after,#recom_article th .ivpf-recommend-counts span::before,#recom_article th .ivpf-recommend-counts span::after{content:none!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts,:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts span{background:none!important;padding:0!important;text-indent:0!important;width:auto!important;height:auto!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts::before,:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts::after,:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts span::before,:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts span::after{content:none!important}
 .ivpf-recommend-counts [data-recommend-count]{font-variant-numeric:tabular-nums;font-weight:700}
-#recom_article th .ivpf-recommend-counts .ivpf-recommend-group,#recom_article th .ivpf-recommend-counts .ivpf-recommend-total{display:inline-flex!important;align-items:center;gap:4px;flex:none}
-#recom_article th .ivpf-recommend-counts [data-recommend-count],#recom_article th .ivpf-recommend-counts [data-recommend-total]{display:inline-block!important;width:5ch!important;flex:0 0 5ch;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
-#recom_article th .ivpf-recommend-total,#recom_article th .ivpf-recommend-total span{color:#000!important}
-#recom_article th .ivpf-recommend-dot{display:inline-block!important;width:8px!important;height:8px!important;flex:0 0 8px;border-radius:50%;padding:0!important;background:#8b95a5!important}
-#recom_article th .ivpf-recommend-dot[data-color="green"]{background:#22a447!important}
-#recom_article th .ivpf-recommend-dot[data-color="yellow"]{background:#e2ae00!important}
-#recom_article th .ivpf-recommend-dot[data-color="red"]{background:#df3940!important}
-#recom_article [data-recommend-count="green"]{color:#22a447!important}
-#recom_article [data-recommend-count="yellow"]{color:#b88d00!important}
-#recom_article [data-recommend-count="red"]{color:#df3940!important}
-#recom_article [data-recommend-count="black"]{color:#8b95a5!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts .ivpf-recommend-group,:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts .ivpf-recommend-total{display:inline-flex!important;align-items:center;gap:4px;flex:none}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts [data-recommend-count],:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-counts [data-recommend-total]{display:inline-block!important;width:5ch!important;flex:0 0 5ch;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-total,:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-total span{color:#000!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-dot{display:inline-block!important;width:8px!important;height:8px!important;flex:0 0 8px;border-radius:50%;padding:0!important;background:#8b95a5!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-dot[data-color="green"]{background:#22a447!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-dot[data-color="yellow"]{background:#e2ae00!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) th .ivpf-recommend-dot[data-color="red"]{background:#df3940!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) [data-recommend-count="green"]{color:#22a447!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) [data-recommend-count="yellow"]{color:#b88d00!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) [data-recommend-count="red"]{color:#df3940!important}
+:is(#recom_article,.recomList[id^="recom_cmt"],.recomList[id^="recom_truecmt"]) [data-recommend-count="black"]{color:#8b95a5!important}
 .ivpf-recommend-counts[hidden]{display:none!important}
 #ivpf-panel{position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#182132;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 4px 20px #0005;font:13px/1.6 sans-serif;max-width:300px}
 #ivpf-panel button{background:#fff;color:#182132;border:0;border-radius:4px;padding:4px 9px;margin:5px 5px 0 0;cursor:pointer}

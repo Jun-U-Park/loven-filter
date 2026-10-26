@@ -1,12 +1,69 @@
 import {identity,hasLostarkProfile,classify,Queue,trustedSender,validNickname} from './core.js';
+import {cacheLimits,entryBytes,planCacheCleanup} from './cache.js';
 const queue=new Queue(5,500),inFlight=new Map(),controllers=new Set();
+const pages=new Map(),jobs=new Map();let visibleOrder=0;
 const ORIGIN='https://www.inven.co.kr',INVENTORY='/member/inventory/view_inventory.php',PROFILE='/common/gameprofile/index.php';
 let epoch=0,cooldown=0,lastClear=0,lastCleanup=0;
 let writes=Promise.resolve();
+let cacheSizes=null,cacheBytes=0;
 const cancelled=()=>({state:'cancelled',reason:'중단된 검증',expires:Date.now()+1000});
 const error=reason=>({state:'error',reason,checked:Date.now(),expires:Date.now()+30000,schema:5});
+const retryWindow=1800000,maxFailures=3;
+function retryHistory(value){
+ return Number.isInteger(value?.failures)&&value.failures>0&&value.failures<=maxFailures&&
+  Number.isFinite(value.lastFailure)&&value.lastFailure<=Date.now()&&value.lastFailure+retryWindow>Date.now()?value:null;
+}
 function mutate(task){const next=writes.then(task,task);writes=next.catch(()=>{});return next;}
-function stop(){epoch++;queue.cancelPending(cancelled());for(const controller of controllers)controller.abort();inFlight.clear();}
+function stop(){epoch++;queue.cancelPending(cancelled());for(const controller of controllers)controller.abort();inFlight.clear();jobs.clear();}
+function priority(job){
+ let best=job.legacy?0:Infinity;
+ for(const token of job.owners){
+  const page=pages.get(token),rank=page?.demands.get(job.nick);
+  if(page?.visible&&rank!==undefined)best=Math.min(best,-page.order*10+rank);
+ }
+ return best;
+}
+function discardQueued(job){
+ const removed=queue.cancelWhere(item=>item.options.tag===job,cancelled());
+ if(removed.length&&jobs.get(job.nick)===job){jobs.delete(job.nick);inFlight.delete(job.nick);}
+}
+function reconcilePage(token){
+ const page=pages.get(token);
+ for(const job of jobs.values()){
+  if(job.owners.has(token)&&(!page?.visible||!page.demands.has(job.nick)))job.owners.delete(token);
+  if(!job.started&&!job.legacy&&!job.owners.size)discardQueued(job);
+ }
+ queue.pump();
+}
+// A connection belongs to one document, so navigation/close detaches its work.
+chrome.runtime.onConnect?.addListener(port=>{
+ if(port.name!=='ivpf-page'||!trustedSender(port.sender,chrome.runtime.id,true)){port.disconnect();return;}
+ let token;
+ port.onMessage.addListener(msg=>{
+  if(msg?.type!=='page'||typeof msg.token!=='string'||!/^[a-zA-Z0-9-]{16,80}$/.test(msg.token)||
+    typeof msg.visible!=='boolean'||!Array.isArray(msg.demands)||msg.demands.length>5000)return;
+  if(token&&token!==msg.token)return;
+  if(!token){if(pages.has(msg.token))return;token=msg.token;pages.set(token,{sender:port.sender,visible:false,order:0,demands:new Map()});}
+  const page=pages.get(token);if(!page)return;
+  if(msg.visible&&!page.visible)page.order=++visibleOrder;
+  page.visible=msg.visible;
+  page.demands=new Map(msg.demands.filter(item=>Array.isArray(item)&&validNickname(item[0])&&Number.isInteger(item[1])&&item[1]>=0&&item[1]<=4));
+  reconcilePage(token);
+  try{port.postMessage({type:'ready'});}catch{}
+ });
+ port.onDisconnect.addListener(()=>{
+  // Chrome supplies lastError on the receiving end when BFCache closes a
+  // channel. Consume it inside this callback before it expires, then perform
+  // the same document/job cleanup regardless of the disconnect reason.
+  try{void chrome.runtime.lastError;}catch{}
+  if(token){pages.delete(token);reconcilePage(token);}
+ });
+});
+function pageFor(token,sender){
+ const page=pages.get(token),owner=page?.sender;
+ return page&&owner.tab.id===sender.tab.id&&owner.frameId===sender.frameId&&owner.url===sender.url&&
+   (!owner.documentId||owner.documentId===sender.documentId)?page:null;
+}
 async function request(url,options={},generation=epoch){
  const target=new URL(url),method=options.method||'GET';
  if(target.origin!==ORIGIN||!((target.pathname===INVENTORY&&method==='GET')||(target.pathname===PROFILE&&method==='POST')))throw Error('허용되지 않은 조회 주소');
@@ -25,26 +82,64 @@ async function request(url,options={},generation=epoch){
   finally{reader.releaseLock();}
  }finally{clearTimeout(timer);controllers.delete(controller);}
 }
-async function cleanup(){
+async function cleanup(options={}){
  const data=await chrome.storage.local.get(null);
- const entries=Object.entries(data).filter(([key])=>key.startsWith('profile:')).sort((a,b)=>(b[1]?.checked||0)-(a[1]?.checked||0));
- await chrome.storage.local.remove(entries.filter(([,v],i)=>i>=1500||!v||v.schema!==5||!Number.isFinite(v.expires)||v.expires<Date.now()).map(([key])=>key));
+ const plan=planCacheCleanup(data,{...options,validRetry:retryHistory});
+ if(plan.remove.length)await chrome.storage.local.remove(plan.remove);
+ cacheSizes=plan.sizes;cacheBytes=plan.bytes;lastCleanup=Date.now();
 }
-async function verify(nick){
- const key='profile:'+nick;
- const stored=await chrome.storage.local.get([key,'settings']);
+async function prepareCache(key,value){
+ const reserve=entryBytes(key,value)+1024;
+ if(!cacheSizes||Date.now()-lastCleanup>60000||cacheBytes+reserve>cacheLimits.softBytes||
+   (!cacheSizes.has(key)&&cacheSizes.size>=cacheLimits.profiles))
+  await cleanup({reserveBytes:reserve,maxProfiles:cacheLimits.profiles-1});
+}
+async function saveProfile(key,result,generation){
+ if(generation!==epoch)return false;
+ try{await chrome.storage.local.set({[key]:result});}
+ catch(e){
+  if(!/quota|QUOTA_BYTES|storage.*(?:full|exceed)/i.test(String(e?.message||e)))throw e;
+  // Settings and valid retry histories are never sacrificed to cache capacity.
+  await cleanup({pressure:true,reserveBytes:entryBytes(key,result)+1024,maxProfiles:cacheLimits.profiles-1});
+  if(generation!==epoch)return false;
+  try{await chrome.storage.local.set({[key]:result});}catch{return false;}
+ }
+ cacheBytes+=entryBytes(key,result)-(cacheSizes?.get(key)||0)+512;
+ cacheSizes?.set(key,entryBytes(key,result));return true;
+}
+async function verify(nick,token,sender){
+ const page=token?pageFor(token,sender):null;
+ if(token&&(!page?.visible||!page.demands.has(nick)))return cancelled();
+ const key='profile:'+nick,retryKey='retry:'+nick;
+ const stored=await chrome.storage.local.get([key,retryKey,'settings']);
  if(!globalThis.ivpfSettings.normalize(stored.settings).enabled)return cancelled();
+ // The document can disappear while reading storage.
+ if(token&&(pages.get(token)!==page||!page.visible||!page.demands.has(nick)))return cancelled();
  const saved=stored[key];
+ const history=retryHistory(stored[retryKey]);
+ if(history?.failures===maxFailures)return {...error('자동 재시도 한도 도달 · 마지막 실패 30분 후 재개'),failures:history.failures,expires:history.lastFailure+retryWindow,cached:true};
  if(saved?.schema===5&&saved.expires>Date.now()&&['verified','unverified','error'].includes(saved.state))return {...saved,cached:true};
- if(inFlight.has(nick))return inFlight.get(nick);
- if(inFlight.size>=100)return error('검증 대기열이 가득 찼습니다. 잠시 후 재시도합니다.');
+ if(inFlight.has(nick)){
+  const existing=jobs.get(nick);if(token)existing?.owners.add(token);else if(existing)existing.legacy=true;
+  queue.pump();return inFlight.get(nick);
+ }
+ const job={nick,owners:new Set(token?[token]:[]),legacy:!token,started:false};
+ if(inFlight.size>=20){
+  // Make room for the current page by dropping only lower-priority queued work.
+  const victim=[...jobs.values()].filter(item=>!item.started&&priority(item)>priority(job)).sort((a,b)=>priority(b)-priority(a))[0];
+  if(victim)discardQueued(victim);
+  if(inFlight.size>=20)return {state:'busy',reason:'검증 대기열 대기',retryAfter:1000};
+ }
  const generation=epoch;
  const promise=queue.run(async()=>{
+  job.started=true;
   let result;
   try{
    if(generation!==epoch)return cancelled();
    const settings=(await chrome.storage.local.get('settings')).settings;
    if(!globalThis.ivpfSettings.normalize(settings).enabled)return cancelled();
+   // A global server cooldown is not another failed attempt by this user.
+   if(Date.now()<cooldown)return {...error('요청 제한으로 잠시 대기 중'),expires:cooldown};
    const html=await request(ORIGIN+INVENTORY+'?'+new URLSearchParams({nick,site:'lostark'}),{},generation);
    const memid=identity(html,nick);
    if(typeof memid!=='string'||memid.length>256||/[\u0000-\u001f\u007f]/.test(memid))throw Error('회원 식별자 형식 오류');
@@ -57,17 +152,31 @@ async function verify(nick){
      result.metrics={updated:value('update_date'),power:value('CombatPower'),item:value('ItemAvgLevel')};
     }
    }
-   result.checked=Date.now();result.expires=result.checked+1800000;result.schema=5;
+   result.checked=Date.now();result.expires=result.checked+cacheLimits.ttl;result.schema=5;
   }catch(e){if(generation!==epoch)return cancelled();result=error(String(e.message).slice(0,120));}
   if(generation!==epoch)return cancelled();
   await mutate(async()=>{
    if(generation!==epoch)return;
-   await chrome.storage.local.set({[key]:result});
-   if(Date.now()-lastCleanup>60000){lastCleanup=Date.now();await cleanup();}
+   await prepareCache(key,result);
+   if(generation!==epoch)return;
+   if(result.state==='error'){
+    const data=await chrome.storage.local.get(retryKey);
+    const previous=retryHistory(data[retryKey]);
+    const failures=Math.min(maxFailures,(previous?.failures||0)+1),lastFailure=result.checked;
+    result.failures=failures;
+    if(failures===maxFailures){result.expires=lastFailure+retryWindow;result.reason+=' · 자동 재시도 한도 도달, 마지막 실패 30분 후 재개';}
+    await chrome.storage.local.set({[retryKey]:{failures,lastFailure}});
+   }else await chrome.storage.local.remove([retryKey]);
+   if(generation!==epoch)return;
+   // A rejected cache write does not turn a successful network lookup gray.
+   await saveProfile(key,result,generation);
   });
   return generation===epoch?result:cancelled();
- }).finally(()=>{if(inFlight.get(nick)===promise)inFlight.delete(nick);});
- inFlight.set(nick,promise);return promise;
+ },{tag:job,priority:()=>priority(job)}).finally(()=>{
+  if(inFlight.get(nick)===promise)inFlight.delete(nick);
+  if(jobs.get(nick)===job)jobs.delete(nick);
+ });
+ jobs.set(nick,job);inFlight.set(nick,promise);return promise;
 }
 chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
  if(!msg||typeof msg!=='object'||!trustedSender(sender,chrome.runtime.id))return false;
@@ -92,14 +201,16 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
   Promise.resolve().then(()=>chrome.action.openPopup(options)).then(()=>reply({ok:true}),()=>reply({ok:false,reason:'Chrome 도구 모음의 확장 아이콘으로 설정을 열어주세요.'}));return true;
  }
  if(msg.type==='verify'&&trustedSender(sender,chrome.runtime.id,true)&&validNickname(msg.nick)){
-  verify(msg.nick).then(reply,()=>reply(error('검증 처리 오류')));return true;
+  if(msg.pageToken!==undefined&&(typeof msg.pageToken!=='string'||!pageFor(msg.pageToken,sender))){reply(cancelled());return false;}
+  verify(msg.nick,msg.pageToken,sender).then(reply,()=>reply(error('검증 처리 오류')));return true;
  }
  if(msg.type==='clear'){
   if(Date.now()-lastClear<2000){reply({ok:false,reason:'잠시 후 다시 눌러주세요.'});return false;}
   lastClear=Date.now();stop();
   mutate(async()=>{
    const data=await chrome.storage.local.get(null);
-   await chrome.storage.local.remove(Object.keys(data).filter(key=>key.startsWith('profile:')));
+   await chrome.storage.local.remove(Object.keys(data).filter(key=>key.startsWith('profile:')||key.startsWith('retry:')));
+   cacheSizes=null;cacheBytes=0;
    await chrome.storage.local.set({cacheGeneration:Math.max(Date.now(),Number(data.cacheGeneration||0)+1)});
   }).then(()=>reply({ok:true}),()=>reply({ok:false,reason:'캐시 초기화 실패'}));return true;
  }

@@ -1,4 +1,4 @@
-const defaults={enabled:true,posts:true,comments:true,green:'show',yellow:'show',red:'hide',black:'hide',months:3,minPower:4000,minItem:1730};
+const defaults={enabled:true,posts:true,comments:true,green:'show',yellow:'show',red:'show',black:'show',months:3,minPower:4000,minItem:1730};
 let settings;
 async function init(){
   const stored=await chrome.storage.local.get(['settings','popupDescriptionOpen','popupCriteriaOpen']);
